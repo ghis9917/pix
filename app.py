@@ -1,103 +1,187 @@
-import sys
-from PyQt5.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget, QHBoxLayout, QCheckBox, QSlider
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPixmap, QDragEnterEvent, QDropEvent, QImage
-from PIL import Image
-from PIL.ImageQt import ImageQt
+# import tkinter as tk
+from customtkinter import *
 
-class ImageDropLabel(QLabel):
-    def __init__(self):
-        super().__init__()
-        self.setAlignment(Qt.AlignCenter)
-        self.setText("Drop an image here")
-        self.setStyleSheet("border: 2px dashed #aaa; padding: 20px;")
-        self.setAcceptDrops(True)
+from tkinter import filedialog, messagebox
+from PIL import Image, ImageTk, ImageFilter, ImageOps
+from image import MyImage
+import numpy as np
+import threading
+import math
 
-    def dragEnterEvent(self, event: QDragEnterEvent):
-        if event.mimeData().hasUrls():
-            event.accept()
+
+class ImageEditorApp:
+    WINDOW_RESIZING_RATIO = 0.45
+    BACKGROUND_COLOR = "#323232"
+    COLORS = 8
+    COMPRESSION_PASSES = 1
+    COMPRESSION_RATE = 0.25
+    BLUR = False
+    BLUR_RADIUS = 10
+    BORDER = False
+
+    def __init__(self, root):
+        self.root = root
+        self._job = None
+        self.root.title("Image editing app")
+        self.root.geometry("1000x600")
+        self.root.configure(bg = self.BACKGROUND_COLOR)
+
+        self.root.bind("<Configure>", self.on_resize)
+
+        self.img = None
+
+        self.blur_switch_var = StringVar(value="on")
+        self.border_switch_var = StringVar(value="on")
+
+        self.create_widgets()
+
+    def on_resize(self, event):
+        if self.img:
+            self.img.on_resize(self.root.winfo_width(), self.root.winfo_height(), self.WINDOW_RESIZING_RATIO)
+            self.display_image()
+
+    def on_slider_change_compression_rate(self, value):
+        if self._job:
+            self.root.after_cancel(self._job)
+
+        self.COMPRESSION_RATE = float(value) / 100.
+        self.sliderCompressionRate_label.configure(text=f"Compression Rate: {100-self.COMPRESSION_RATE*100}%")
+        self._job = self.root.after(200, self.update_image)
+
+    def on_slider_change_colors(self, value):
+        if self._job:
+            self.root.after_cancel(self._job)
+
+        self.COLORS = 2 ** int(value)
+        self.sliderColors_label.configure(text=f"# Colors: {self.COLORS}")
+        self._job = self.root.after(200, self.update_image)
+
+    def on_slider_change_blur_radius(self, value):
+        if self._job:
+            self.root.after_cancel(self._job)
+
+        self.BLUR_RADIUS = int(value)
+        self.sliderBlur_label.configure(text=f"Blur Radius: {self.BLUR_RADIUS}")
+        self._job = self.root.after(200, self.update_image)
+
+    def on_switch_blur(self):
+        if self._job:
+            self.root.after_cancel(self._job)
+        
+        self.BLUR = self.blur_switch_var.get() == "on"
+        self._job = self.root.after(200, self.update_image)
+
+    def on_switch_border(self):
+        if self._job:
+            self.root.after_cancel(self._job)
+        
+        self.BORDER = self.border_switch_var.get() == "on"
+        self._job = self.root.after(200, self.update_image)
+
+    def update_image(self):
+        if self.img:
+            self.img.process_image(
+                Pixelate(
+                    COLORS_QUANTIZATION=self.COLORS,
+                    COMPRESSION_PASSES=self.COMPRESSION_PASSES,
+                    COMPRESSION_RATE=self.COMPRESSION_RATE,
+                    BLUR=self.BLUR,
+                    BLUR_RADIUS=self.BLUR_RADIUS,
+                    BORDER=self.BORDER
+                ),
+                from_original=False
+            )
+            self.display_image()
+
+    def load_image(self):
+        file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg *.jpeg *png *.bmp *.gif")])
+        if file_path:
+            self.img = MyImage(file_path)
+            self.display_image()
+
+    def display_image(self):
+        if self.img:
+            self.original_image_label.configure(image=CTkImage(self.img.preview, size=(self.img.preview.width, self.img.preview.height)))
+            self.image_label.configure(image=CTkImage(self.img.processed, size=(self.img.processed.width, self.img.processed.height)))
+
+    def reset_image(self):
+        if self.img:
+            self.img.reset()
+            self.display_image()
+
+    def save_image(self):
+        if self.image:
+            file_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG Files", "*.png"), ("JPEG Files", "*.jpg"), ("All Files", "*.*")])
+            if file_path:
+                self.img.save(file_path)
+                messagebox.showinfo("Success", "Imaged saved successfully!")
+
+    def create_widgets(self):
+        self.create_images()
+        self.create_settings()
+        self.create_buttons()
+
+    def create_images(self):
+        self.image_frame = CTkFrame(master=self.root)
+        self.image_frame.pack(padx=20, pady=20, fill="x")
+
+        self.original_image_label = CTkLabel(self.image_frame, text="")
+        self.original_image_label.pack(side="left", pady=10)
+
+        self.image_label = CTkLabel(self.image_frame, text="")
+        self.image_label.pack(side="right", pady=10)
+
+    def create_buttons(self):
+        self.buttons_frame = CTkFrame(master=self.root)
+        self.buttons_frame.pack(pady=20)
+
+        self.load_button = CTkButton(self.buttons_frame, text="Load Image", command=self.load_image)
+        self.load_button.pack(side="left", padx=10)
+
+        self.reset_button = CTkButton(self.buttons_frame, text="Reset Image", command=self.reset_image)
+        self.reset_button.pack(side="left", padx=10)
+
+        self.save_button = CTkButton(self.buttons_frame, text="Save Image", command=self.save_image)
+        self.save_button.pack(side="left", padx=10)
+
+    def create_settings(self, row_padding = 5):
+        self.settings_frame = CTkFrame(master=self.root)
+        self.settings_frame.pack(pady=10)
+
+        self.sliderCompressionRate_label = CTkLabel(self.settings_frame, text=f"Compression Rate: {100-self.COMPRESSION_RATE*100}%")
+        self.sliderCompressionRate_label.pack(pady=row_padding)
+        self.sliderCompressionRate = CTkSlider(self.settings_frame, from_=0, to=100, number_of_steps=100, width=500, orientation='horizontal', command=self.on_slider_change_compression_rate)
+        self.sliderCompressionRate.pack(pady=row_padding)
+        self.sliderCompressionRate.set(int(self.COMPRESSION_RATE*100))
+
+        self.sliderColors_label = CTkLabel(self.settings_frame, text=f"# Colors: {self.COLORS}")
+        self.sliderColors_label.pack(pady=row_padding)
+        self.sliderColors = CTkSlider(self.settings_frame, from_=1, to=6, number_of_steps=5, width=500, orientation='horizontal', command=self.on_slider_change_colors)
+        self.sliderColors.pack(pady=row_padding)
+        self.sliderColors.set(int(math.log(self.COLORS, 2)))
+
+        self.switchBlur = CTkSwitch(self.settings_frame, text="Blur", command=self.on_switch_blur, variable=self.blur_switch_var, onvalue="on", offvalue="off")
+        self.switchBlur.pack(pady=row_padding)
+        if self.BLUR:
+            self.switchBlur.select()
         else:
-            event.ignore()
+            self.switchBlur.deselect()
 
-    def dropEvent(self, event: QDropEvent):
-        urls = event.mimeData().urls()
-        if urls:
-            file_path = urls[0].toLocalFile()
-            if file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
-                # Open image with PIL
-                pil_image = Image.open(file_path)
-                # Convert PIL image to QImage using ImageQt
-                qimage = QImage(pil_image.tobytes(), pil_image.width, pil_image.height, pil_image.width * 3, QImage.Format_RGB888)
-                # Convert QImage to QPixmap
-                pixmap = QPixmap.fromImage(qimage)
-                # Set the pixmap to the label
-                self.setPixmap(pixmap.scaled(self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
-                # Optional: Store the PIL image object
-                self.pil_image = pil_image  # Keep reference to avoid garbage collection
-                event.accept()
-            else:
-                self.setText("Unsupported file type")
+        self.sliderBlur_label = CTkLabel(self.settings_frame, text=f"Blur Radius: {self.BLUR_RADIUS}")
+        self.sliderBlur_label.pack(pady=row_padding)
+        self.sliderBlur = CTkSlider(self.settings_frame, from_=1, to=50, number_of_steps=49, width=500, orientation='horizontal', command=self.on_slider_change_blur_radius)
+        self.sliderBlur.pack(pady=row_padding)
+        self.sliderBlur.set(self.BLUR_RADIUS)
+
+        self.switchBorder = CTkSwitch(self.settings_frame, text="Border", command=self.on_switch_border, variable=self.border_switch_var, onvalue="on", offvalue="off")
+        self.switchBorder.pack(pady=row_padding)
+        if self.BORDER:
+            self.switchBorder.select()
         else:
-            self.setText("No valid file dropped")
+            self.switchBorder.deselect()
 
-
-def getSettingsLayout():
-    layoutVertical = QVBoxLayout()
-
-    checkBoxBlur = QCheckBox("Blur")
-    checkBoxBlur.setCheckState(Qt.Checked)
-    checkBoxBlur.stateChanged.connect(switchBlur)
-
-    checkBoxBorder = QCheckBox("Borders")
-    checkBoxBorder.setCheckState(Qt.Checked)
-    checkBoxBorder.stateChanged.connect(switchBorder)
-
-    compressionRateSlider = QSlider(Qt.Horizontal)
-    compressionRateSlider.setRange(1, 100)
-    compressionRateSlider.setSingleStep(1)
-    compressionRateSlider.valueChanged.connect(changeCompressionRate)
-
-    layoutVertical.addWidget(checkBoxBlur)
-    layoutVertical.addWidget(checkBoxBorder)
-    layoutVertical.addWidget(compressionRateSlider)
-
-    return layoutVertical
-
-def switchBlur(s):
-    BLUR = s == Qt.Checked
-    # Don't forget to call each time some sort of refresh function that changes the previewed image
-
-def switchBorder(s):
-    BORDER = s == Qt.Checked
-    # Don't forget to call each time some sort of refresh function that changes the previewed image
-
-def changeCompressionRate(v):
-    COMPRESSION_RATE = v/100
-    # Don't forget to call each time some sort of refresh function that changes the previewed image
-
-
-class MainWindow(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Image Drop with PIL")
-        self.resize(500, 400)
-
-        layoutVertical = QVBoxLayout()
-
-        layout = QHBoxLayout()
-        self.image_label_out = ImageDropLabel()
-        self.image_label = ImageDropLabel()
-        layout.addWidget(self.image_label)
-        layout.addWidget(self.image_label_out)
-
-        self.settings = getSettingsLayout()
-
-        layoutVertical.addLayout(layout)
-        layoutVertical.addLayout(self.settings)
-        self.setLayout(layoutVertical)
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec_())
+    root = CTk()
+    app = ImageEditorApp(root)
+    root.mainloop()
