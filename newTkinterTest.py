@@ -28,7 +28,6 @@ class ImageEditorApp:
         self.root.bind("<Configure>", self.on_resize)
 
         self.image_path = None
-        # self.original_image = None
         self.preview_original_image = None 
         self.image = None
 
@@ -46,7 +45,7 @@ class ImageEditorApp:
 
         self.COMPRESSION_RATE = float(value) / 100.
         self.sliderCompressionRate_label.configure(text=f"Compression Rate: {100-self.COMPRESSION_RATE*100}%")
-        self._job = self.root.after(200, self.updateImageProcessing)
+        self._job = self.root.after(200, self.update_image)
 
     def on_slider_change_colors(self, value):
         if self._job:
@@ -54,7 +53,7 @@ class ImageEditorApp:
 
         self.COLORS = 2 ** int(value)
         self.sliderColors_label.configure(text=f"# Colors: {self.COLORS}")
-        self._job = self.root.after(200, self.updateImageProcessing)
+        self._job = self.root.after(200, self.update_image)
 
     def on_slider_change_blur_radius(self, value):
         if self._job:
@@ -62,27 +61,27 @@ class ImageEditorApp:
 
         self.BLUR_RADIUS = int(value)
         self.sliderBlur_label.configure(text=f"Blur Radius: {self.BLUR_RADIUS}")
-        self._job = self.root.after(200, self.updateImageProcessing)
+        self._job = self.root.after(200, self.update_image)
 
     def on_switch_blur(self):
         if self._job:
             self.root.after_cancel(self._job)
         
         self.BLUR = self.blur_switch_var.get() == "on"
-        self._job = self.root.after(200, self.updateImageProcessing)
+        self._job = self.root.after(200, self.update_image)
 
     def on_switch_border(self):
         if self._job:
             self.root.after_cancel(self._job)
         
         self.BORDER = self.border_switch_var.get() == "on"
-        self._job = self.root.after(200, self.updateImageProcessing)
+        self._job = self.root.after(200, self.update_image)
 
-    def updateImageProcessing(self):
-        self.doThingOnImage(from_original=False)
+    def update_image(self):
+        self.process_image(from_original=False)
         self.display_image()
 
-    def doThingOnImage(self, from_original=False): # TODO: rename function
+    def process_image(self, from_original=False):
         if self.image:
             if from_original:
                 self.image = Image.open(self.image_path)
@@ -128,23 +127,19 @@ class ImageEditorApp:
         if file_path:
             self.image_path = file_path
             tmp = Image.open(file_path)
-            self.image = ImageOps.scale(tmp.copy(), 0.15 )
+            self.image = ImageOps.scale(tmp.copy(), 0.25)
             self.preview_original_image = self.image.copy()
             self.display_image()
 
-    def resize_image(self, image, size=None):
+    def resize_image(self, image):
 
         aspect_ratio = image.width / image.height
         if aspect_ratio < 1:
-            new_height = int(self.root.winfo_height() * 0.5)
+            new_height = int(self.root.winfo_height() * 0.45)
             new_width = int(new_height*aspect_ratio)
         else:
-            new_width = int(self.root.winfo_width() * 0.5)
+            new_width = int(self.root.winfo_width() * 0.45)
             new_height = int(new_width/aspect_ratio)
-
-        if size:
-            new_height = min(new_height, size[1])
-            new_width = min(new_width, size[1])
 
         return CTkImage(image.resize((new_width, new_height), Image.LANCZOS), size=(new_width, new_height))
 
@@ -159,7 +154,7 @@ class ImageEditorApp:
             self.display_image()
 
     def reset_image(self):
-        if self.original_image:
+        if self.preview_original_image:
             self.image = self.preview_original_image.copy()
             self.display_image()
 
@@ -172,9 +167,11 @@ class ImageEditorApp:
                 messagebox.showinfo("Success", "Imaged saved successfully!")
 
     def create_widgets(self):
-        self.load_button = CTkButton(self.root, text="Load Image", command=self.load_image)
-        self.load_button.pack(pady=10)
+        self.create_images()
+        self.create_settings()
+        self.create_buttons()
 
+    def create_images(self):
         self.image_frame = CTkFrame(master=self.root)
         self.image_frame.pack(padx=20, pady=20, fill="x")
 
@@ -184,50 +181,54 @@ class ImageEditorApp:
         self.image_label = CTkLabel(self.image_frame, text="")
         self.image_label.pack(side="right", pady=10)
 
-        self.settings_frame = CTkFrame(master=self.root)
-        self.settings_frame.pack(pady=20)
-
-        self.sliderCompressionRate_label = CTkLabel(self.settings_frame, text=f"Compression Rate: {100-self.COMPRESSION_RATE*100}%")
-        self.sliderCompressionRate_label.pack(pady=5)
-        self.sliderCompressionRate = CTkSlider(self.settings_frame, from_=0, to=100, number_of_steps=100, width=500, orientation='horizontal', command=self.on_slider_change_compression_rate)
-        self.sliderCompressionRate.pack(pady=10)
-        self.sliderCompressionRate.set(int(self.COMPRESSION_RATE*100))
-
-        self.sliderColors_label = CTkLabel(self.settings_frame, text=f"# Colors: {self.COLORS}")
-        self.sliderColors_label.pack(pady=5)
-        self.sliderColors = CTkSlider(self.settings_frame, from_=1, to=6, number_of_steps=5, width=500, orientation='horizontal', command=self.on_slider_change_colors)
-        self.sliderColors.pack(pady=10)
-        print(self.COLORS)
-        self.sliderColors.set(int(math.log(self.COLORS, 2)))
-
-        self.switchBlur = CTkSwitch(self.settings_frame, text="Blur", command=self.on_switch_blur, variable=self.blur_switch_var, onvalue="on", offvalue="off")
-        self.switchBlur.pack(pady=10)
-        if self.BLUR:
-            self.switchBlur.select()
-        else:
-            self.switchBlur.deselect()
-
-        self.sliderBlur_label = CTkLabel(self.settings_frame, text=f"Blur Radius: {self.BLUR_RADIUS}")
-        self.sliderBlur_label.pack(pady=5)
-        self.sliderBlur = CTkSlider(self.settings_frame, from_=1, to=50, number_of_steps=50, width=500, orientation='horizontal', command=self.on_slider_change_blur_radius)
-        self.sliderBlur.pack(pady=10)
-        self.sliderBlur.set(self.BLUR_RADIUS)
-
-        self.switchBorder = CTkSwitch(self.settings_frame, text="Border", command=self.on_switch_border, variable=self.border_switch_var, onvalue="on", offvalue="off")
-        self.switchBorder.pack(pady=10)
-        if self.BORDER:
-            self.switchBorder.select()
-        else:
-            self.switchBorder.deselect()
-
+    def create_buttons(self):
         self.buttons_frame = CTkFrame(master=self.root)
         self.buttons_frame.pack(pady=20)
+
+        self.load_button = CTkButton(self.buttons_frame, text="Load Image", command=self.load_image)
+        self.load_button.pack(side="left", padx=10)
 
         self.reset_button = CTkButton(self.buttons_frame, text="Reset Image", command=self.reset_image)
         self.reset_button.pack(side="left", padx=10)
 
         self.save_button = CTkButton(self.buttons_frame, text="Save Image", command=self.save_image)
         self.save_button.pack(side="left", padx=10)
+
+    def create_settings(self, row_padding = 5):
+        self.settings_frame = CTkFrame(master=self.root)
+        self.settings_frame.pack(pady=10)
+
+        self.sliderCompressionRate_label = CTkLabel(self.settings_frame, text=f"Compression Rate: {100-self.COMPRESSION_RATE*100}%")
+        self.sliderCompressionRate_label.pack(pady=row_padding)
+        self.sliderCompressionRate = CTkSlider(self.settings_frame, from_=0, to=100, number_of_steps=100, width=500, orientation='horizontal', command=self.on_slider_change_compression_rate)
+        self.sliderCompressionRate.pack(pady=row_padding)
+        self.sliderCompressionRate.set(int(self.COMPRESSION_RATE*100))
+
+        self.sliderColors_label = CTkLabel(self.settings_frame, text=f"# Colors: {self.COLORS}")
+        self.sliderColors_label.pack(pady=row_padding)
+        self.sliderColors = CTkSlider(self.settings_frame, from_=1, to=6, number_of_steps=5, width=500, orientation='horizontal', command=self.on_slider_change_colors)
+        self.sliderColors.pack(pady=row_padding)
+        self.sliderColors.set(int(math.log(self.COLORS, 2)))
+
+        self.switchBlur = CTkSwitch(self.settings_frame, text="Blur", command=self.on_switch_blur, variable=self.blur_switch_var, onvalue="on", offvalue="off")
+        self.switchBlur.pack(pady=row_padding)
+        if self.BLUR:
+            self.switchBlur.select()
+        else:
+            self.switchBlur.deselect()
+
+        self.sliderBlur_label = CTkLabel(self.settings_frame, text=f"Blur Radius: {self.BLUR_RADIUS}")
+        self.sliderBlur_label.pack(pady=row_padding)
+        self.sliderBlur = CTkSlider(self.settings_frame, from_=1, to=50, number_of_steps=49, width=500, orientation='horizontal', command=self.on_slider_change_blur_radius)
+        self.sliderBlur.pack(pady=row_padding)
+        self.sliderBlur.set(self.BLUR_RADIUS)
+
+        self.switchBorder = CTkSwitch(self.settings_frame, text="Border", command=self.on_switch_border, variable=self.border_switch_var, onvalue="on", offvalue="off")
+        self.switchBorder.pack(pady=row_padding)
+        if self.BORDER:
+            self.switchBorder.select()
+        else:
+            self.switchBorder.deselect()
 
 
 if __name__ == "__main__":
