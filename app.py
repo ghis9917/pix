@@ -1,17 +1,25 @@
-# import tkinter as tk
+from image import MyImage
 from customtkinter import *
-
+from processing import Pixelate
 from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk, ImageFilter, ImageOps
-from image import MyImage
+
+import customtkinter
 import numpy as np
 import threading
 import math
+import time
 
+customtkinter.set_appearance_mode("dark")
+customtkinter.set_default_color_theme("catppuccin-frappe-lavender.json") 
 
 class ImageEditorApp:
-    WINDOW_RESIZING_RATIO = 0.45
-    BACKGROUND_COLOR = "#323232"
+
+    RESPONSE_DELAY = 200
+    WINDOW_RESIZING_RATIO = 0.5
+    OVERFLOW_RESIZING_RATIO = 0.5
+
+    # TODO: track these through a Pixelate object
     COLORS = 8
     COMPRESSION_PASSES = 1
     COMPRESSION_RATE = 0.25
@@ -22,9 +30,8 @@ class ImageEditorApp:
     def __init__(self, root):
         self.root = root
         self._job = None
-        self.root.title("Image editing app")
+        self.root.title("PIX")
         self.root.geometry("1000x600")
-        self.root.configure(bg = self.BACKGROUND_COLOR)
 
         self.root.bind("<Configure>", self.on_resize)
 
@@ -36,9 +43,13 @@ class ImageEditorApp:
         self.create_widgets()
 
     def on_resize(self, event):
+        if self._job:
+            self.root.after_cancel(self._job)
+        
         if self.img:
-            self.img.on_resize(self.root.winfo_width(), self.root.winfo_height(), self.WINDOW_RESIZING_RATIO)
-            self.display_image()
+            def temp():
+                self.display_image()
+            self._job = self.root.after(self.RESPONSE_DELAY, temp)
 
     def on_slider_change_compression_rate(self, value):
         if self._job:
@@ -46,7 +57,7 @@ class ImageEditorApp:
 
         self.COMPRESSION_RATE = float(value) / 100.
         self.sliderCompressionRate_label.configure(text=f"Compression Rate: {100-self.COMPRESSION_RATE*100}%")
-        self._job = self.root.after(200, self.update_image)
+        self._job = self.root.after(self.RESPONSE_DELAY, self.update_image)
 
     def on_slider_change_colors(self, value):
         if self._job:
@@ -54,7 +65,7 @@ class ImageEditorApp:
 
         self.COLORS = 2 ** int(value)
         self.sliderColors_label.configure(text=f"# Colors: {self.COLORS}")
-        self._job = self.root.after(200, self.update_image)
+        self._job = self.root.after(self.RESPONSE_DELAY, self.update_image)
 
     def on_slider_change_blur_radius(self, value):
         if self._job:
@@ -62,26 +73,26 @@ class ImageEditorApp:
 
         self.BLUR_RADIUS = int(value)
         self.sliderBlur_label.configure(text=f"Blur Radius: {self.BLUR_RADIUS}")
-        self._job = self.root.after(200, self.update_image)
+        self._job = self.root.after(self.RESPONSE_DELAY, self.update_image)
 
     def on_switch_blur(self):
         if self._job:
             self.root.after_cancel(self._job)
         
         self.BLUR = self.blur_switch_var.get() == "on"
-        self._job = self.root.after(200, self.update_image)
+        self._job = self.root.after(self.RESPONSE_DELAY, self.update_image)
 
     def on_switch_border(self):
         if self._job:
             self.root.after_cancel(self._job)
         
         self.BORDER = self.border_switch_var.get() == "on"
-        self._job = self.root.after(200, self.update_image)
+        self._job = self.root.after(self.RESPONSE_DELAY, self.update_image)
 
     def update_image(self):
         if self.img:
             self.img.process_image(
-                Pixelate(
+                processing_settings=Pixelate(
                     COLORS_QUANTIZATION=self.COLORS,
                     COMPRESSION_PASSES=self.COMPRESSION_PASSES,
                     COMPRESSION_RATE=self.COMPRESSION_RATE,
@@ -99,10 +110,31 @@ class ImageEditorApp:
             self.img = MyImage(file_path)
             self.display_image()
 
+    def resize_images(self):
+        aspect_ratio = self.img.preview.width / self.img.preview.height
+
+        if aspect_ratio < 1:
+            new_height = int(self.root.winfo_height() * self.WINDOW_RESIZING_RATIO)
+            new_width = int(new_height*aspect_ratio)
+            if new_width * 2 > self.root.winfo_width():
+                aspect_ratio = new_width / new_height
+                new_width = int(self.root.winfo_width() * self.OVERFLOW_RESIZING_RATIO)
+                new_height = int(new_width/aspect_ratio)
+        else:
+            new_width = int(self.root.winfo_width() * self.WINDOW_RESIZING_RATIO)
+            new_height = int(new_width/aspect_ratio)
+            if new_height * 2 > self.root.winfo_height():
+                aspect_ratio = new_width / new_height
+                new_height = int(self.root.winfo_height() * self.OVERFLOW_RESIZING_RATIO)
+                new_width = int(new_height*aspect_ratio)
+
+        self.img.resize(new_width, new_height)
+
     def display_image(self):
         if self.img:
-            self.original_image_label.configure(image=CTkImage(self.img.preview, size=(self.img.preview.width, self.img.preview.height)))
-            self.image_label.configure(image=CTkImage(self.img.processed, size=(self.img.processed.width, self.img.processed.height)))
+            self.resize_images()
+            self.preview_image.configure(light_image=self.img.preview, size=(self.img.preview.width, self.img.preview.height))
+            self.processed_image.configure(light_image=self.img.processed, size=(self.img.processed.width, self.img.processed.height))
 
     def reset_image(self):
         if self.img:
@@ -123,25 +155,27 @@ class ImageEditorApp:
 
     def create_images(self):
         self.image_frame = CTkFrame(master=self.root)
-        self.image_frame.pack(padx=20, pady=20, fill="x")
+        self.image_frame.pack(padx=20, pady=20)
 
-        self.original_image_label = CTkLabel(self.image_frame, text="")
-        self.original_image_label.pack(side="left", pady=10)
+        self.preview_image = CTkImage(Image.new("RGB", (0, 0), (0, 0, 0)), size=(0, 0))
+        self.preview_image_label = CTkLabel(self.image_frame, image=self.preview_image, text="")
+        self.preview_image_label.pack(side="left", pady=10)
 
-        self.image_label = CTkLabel(self.image_frame, text="")
-        self.image_label.pack(side="right", pady=10)
+        self.processed_image = CTkImage(Image.new("RGB", (0, 0), (0, 0, 0)), size=(0, 0))
+        self.processed_image_label = CTkLabel(self.image_frame, image=self.processed_image, text="")
+        self.processed_image_label.pack(side="left", pady=10)
 
     def create_buttons(self):
         self.buttons_frame = CTkFrame(master=self.root)
         self.buttons_frame.pack(pady=20)
 
-        self.load_button = CTkButton(self.buttons_frame, text="Load Image", command=self.load_image)
+        self.load_button = CTkButton(self.buttons_frame, text="Load Image", text_color="black", command=self.load_image)
         self.load_button.pack(side="left", padx=10)
 
-        self.reset_button = CTkButton(self.buttons_frame, text="Reset Image", command=self.reset_image)
+        self.reset_button = CTkButton(self.buttons_frame, text="Reset Image", text_color="black", command=self.reset_image)
         self.reset_button.pack(side="left", padx=10)
 
-        self.save_button = CTkButton(self.buttons_frame, text="Save Image", command=self.save_image)
+        self.save_button = CTkButton(self.buttons_frame, text="Save Image", text_color="black", command=self.save_image)
         self.save_button.pack(side="left", padx=10)
 
     def create_settings(self, row_padding = 5):
