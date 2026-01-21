@@ -10,7 +10,14 @@ DEFAULT_BLUR = False
 DEFAULT_BLUR_RADIUS = 5
 DEFAULT_BORDER = False
 
-class Pixelate:
+class ProcessingTechnique:
+    def __init__(self):
+        pass
+
+    def apply_effect(self, image: Image) -> Image:
+        raise NotImplementedError()
+
+class Pixelate(ProcessingTechnique):
 
     def __init__(
         self, 
@@ -28,7 +35,7 @@ class Pixelate:
         self.BLUR_RADIUS = BLUR_RADIUS
         self.BORDER = BORDER
 
-    def apply_effect(self, image):
+    def apply_effect(self, image: Image) -> Image:
         maxWidth = image.width
         maxHeight = image.height
 
@@ -60,3 +67,33 @@ class Pixelate:
 
         else:
             return image
+
+
+class BitSplice(ProcessingTechnique):
+
+    def __init__(self):
+        super.__init__()
+
+    def apply_effect(self, image: Image) -> Image:
+        rgb_array = np.array(image)
+        planes = []
+
+        for bit_position in range(8):
+            r_slice = (rgb_array[:, :, 0] >> bit_position) & 1
+            g_slice = (rgb_array[:, :, 1] >> bit_position) & 1
+            b_slice = (rgb_array[:, :, 2] >> bit_position) & 1
+
+            sliced_image = np.stack([r_slice, g_slice, b_slice], axis=-1).astype(np.uint8) * 255
+
+            planes.append(Image.fromarray(sliced_image))
+
+        # TODO: need to check GIF handling in CustomTkinter and PIL to see what's possible
+        # planes[0].save(
+        #     '../output/test_planeSlicing_RGB.gif',
+        #     save_all=True,           # Save all frames
+        #     append_images=planes[1:], # Append remaining frames
+        #     duration=500,            # Duration per frame in milliseconds
+        #     loop=0                   # 0 for infinite loop
+        # )
+
+        return planes[-1]
