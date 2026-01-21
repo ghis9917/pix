@@ -17,15 +17,6 @@ class ImageEditorApp:
 
     RESPONSE_DELAY = 200
     WINDOW_RESIZING_RATIO = 0.5
-    OVERFLOW_RESIZING_RATIO = 0.5
-
-    # TODO: track these through a Pixelate object
-    COLORS = 8
-    COMPRESSION_PASSES = 1
-    COMPRESSION_RATE = 0.25
-    BLUR = False
-    BLUR_RADIUS = 10
-    BORDER = False
 
     def __init__(self, root):
         self.root = root
@@ -36,6 +27,7 @@ class ImageEditorApp:
         self.root.bind("<Configure>", self.on_resize)
 
         self.img = None
+        self.pixelate_effect = Pixelate()
 
         self.blur_switch_var = StringVar(value="on")
         self.border_switch_var = StringVar(value="on")
@@ -55,51 +47,44 @@ class ImageEditorApp:
         if self._job:
             self.root.after_cancel(self._job)
 
-        self.COMPRESSION_RATE = float(value) / 100.
-        self.sliderCompressionRate_label.configure(text=f"Compression Rate: {100-self.COMPRESSION_RATE*100}%")
+        self.pixelate_effect.COMPRESSION_RATE = float(value) / 100.
+        self.sliderCompressionRate_label.configure(text=f"Compression Rate: {100-self.pixelate_effect.COMPRESSION_RATE*100}%")
         self._job = self.root.after(self.RESPONSE_DELAY, self.update_image)
 
     def on_slider_change_colors(self, value):
         if self._job:
             self.root.after_cancel(self._job)
 
-        self.COLORS = 2 ** int(value)
-        self.sliderColors_label.configure(text=f"# Colors: {self.COLORS}")
+        self.pixelate_effect.COLORS_QUANTIZATION = 2 ** int(value)
+        self.sliderColors_label.configure(text=f"# Colors: {self.pixelate_effect.COLORS_QUANTIZATION}")
         self._job = self.root.after(self.RESPONSE_DELAY, self.update_image)
 
     def on_slider_change_blur_radius(self, value):
         if self._job:
             self.root.after_cancel(self._job)
 
-        self.BLUR_RADIUS = int(value)
-        self.sliderBlur_label.configure(text=f"Blur Radius: {self.BLUR_RADIUS}")
+        self.pixelate_effect.BLUR_RADIUS = int(value)
+        self.sliderBlur_label.configure(text=f"Blur Radius: {self.pixelate_effect.BLUR_RADIUS}")
         self._job = self.root.after(self.RESPONSE_DELAY, self.update_image)
 
     def on_switch_blur(self):
         if self._job:
             self.root.after_cancel(self._job)
         
-        self.BLUR = self.blur_switch_var.get() == "on"
+        self.pixelate_effect.BLUR = self.blur_switch_var.get() == "on"
         self._job = self.root.after(self.RESPONSE_DELAY, self.update_image)
 
     def on_switch_border(self):
         if self._job:
             self.root.after_cancel(self._job)
         
-        self.BORDER = self.border_switch_var.get() == "on"
+        self.pixelate_effect.BORDER = self.border_switch_var.get() == "on"
         self._job = self.root.after(self.RESPONSE_DELAY, self.update_image)
 
     def update_image(self):
         if self.img:
             self.img.process_image(
-                processing_settings=Pixelate(
-                    COLORS_QUANTIZATION=self.COLORS,
-                    COMPRESSION_PASSES=self.COMPRESSION_PASSES,
-                    COMPRESSION_RATE=self.COMPRESSION_RATE,
-                    BLUR=self.BLUR,
-                    BLUR_RADIUS=self.BLUR_RADIUS,
-                    BORDER=self.BORDER
-                ),
+                processing_settings=self.pixelate_effect,
                 from_original=False
             )
             self.display_image()
@@ -118,14 +103,14 @@ class ImageEditorApp:
             new_width = int(new_height*aspect_ratio)
             if new_width * 2 > self.root.winfo_width():
                 aspect_ratio = new_width / new_height
-                new_width = int(self.root.winfo_width() * self.OVERFLOW_RESIZING_RATIO)
+                new_width = int(self.root.winfo_width() * self.WINDOW_RESIZING_RATIO)
                 new_height = int(new_width/aspect_ratio)
         else:
             new_width = int(self.root.winfo_width() * self.WINDOW_RESIZING_RATIO)
             new_height = int(new_width/aspect_ratio)
             if new_height * 2 > self.root.winfo_height():
                 aspect_ratio = new_width / new_height
-                new_height = int(self.root.winfo_height() * self.OVERFLOW_RESIZING_RATIO)
+                new_height = int(self.root.winfo_height() * self.WINDOW_RESIZING_RATIO)
                 new_width = int(new_height*aspect_ratio)
 
         self.img.resize(new_width, new_height)
@@ -182,34 +167,34 @@ class ImageEditorApp:
         self.settings_frame = CTkFrame(master=self.root)
         self.settings_frame.pack(pady=10)
 
-        self.sliderCompressionRate_label = CTkLabel(self.settings_frame, text=f"Compression Rate: {100-self.COMPRESSION_RATE*100}%")
+        self.sliderCompressionRate_label = CTkLabel(self.settings_frame, text=f"Compression Rate: {100-self.pixelate_effect.COMPRESSION_RATE*100}%")
         self.sliderCompressionRate_label.pack(pady=row_padding)
         self.sliderCompressionRate = CTkSlider(self.settings_frame, from_=0, to=100, number_of_steps=100, width=500, orientation='horizontal', command=self.on_slider_change_compression_rate)
         self.sliderCompressionRate.pack(pady=row_padding)
-        self.sliderCompressionRate.set(int(self.COMPRESSION_RATE*100))
+        self.sliderCompressionRate.set(int(self.pixelate_effect.COMPRESSION_RATE*100))
 
-        self.sliderColors_label = CTkLabel(self.settings_frame, text=f"# Colors: {self.COLORS}")
+        self.sliderColors_label = CTkLabel(self.settings_frame, text=f"# Colors: {self.pixelate_effect.COLORS_QUANTIZATION}")
         self.sliderColors_label.pack(pady=row_padding)
         self.sliderColors = CTkSlider(self.settings_frame, from_=1, to=6, number_of_steps=5, width=500, orientation='horizontal', command=self.on_slider_change_colors)
         self.sliderColors.pack(pady=row_padding)
-        self.sliderColors.set(int(math.log(self.COLORS, 2)))
+        self.sliderColors.set(int(math.log(self.pixelate_effect.COLORS_QUANTIZATION, 2)))
 
         self.switchBlur = CTkSwitch(self.settings_frame, text="Blur", command=self.on_switch_blur, variable=self.blur_switch_var, onvalue="on", offvalue="off")
         self.switchBlur.pack(pady=row_padding)
-        if self.BLUR:
+        if self.pixelate_effect.BLUR:
             self.switchBlur.select()
         else:
             self.switchBlur.deselect()
 
-        self.sliderBlur_label = CTkLabel(self.settings_frame, text=f"Blur Radius: {self.BLUR_RADIUS}")
+        self.sliderBlur_label = CTkLabel(self.settings_frame, text=f"Blur Radius: {self.pixelate_effect.BLUR_RADIUS}")
         self.sliderBlur_label.pack(pady=row_padding)
         self.sliderBlur = CTkSlider(self.settings_frame, from_=1, to=50, number_of_steps=49, width=500, orientation='horizontal', command=self.on_slider_change_blur_radius)
         self.sliderBlur.pack(pady=row_padding)
-        self.sliderBlur.set(self.BLUR_RADIUS)
+        self.sliderBlur.set(self.pixelate_effect.BLUR_RADIUS)
 
         self.switchBorder = CTkSwitch(self.settings_frame, text="Border", command=self.on_switch_border, variable=self.border_switch_var, onvalue="on", offvalue="off")
         self.switchBorder.pack(pady=row_padding)
-        if self.BORDER:
+        if self.pixelate_effect.BORDER:
             self.switchBorder.select()
         else:
             self.switchBorder.deselect()
