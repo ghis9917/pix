@@ -2,7 +2,7 @@
 from customtkinter import *
 
 from tkinter import filedialog, messagebox
-from PIL import Image, ImageTk, ImageFilter
+from PIL import Image, ImageTk, ImageFilter, ImageOps
 import numpy as np
 import threading
 import math
@@ -27,9 +27,10 @@ class ImageEditorApp:
 
         self.root.bind("<Configure>", self.on_resize)
 
-        self.original_image = None
+        self.image_path = None
+        # self.original_image = None
+        self.preview_original_image = None 
         self.image = None
-        self.image_tk = None
 
         self.blur_switch_var = StringVar(value="on")
         self.border_switch_var = StringVar(value="on")
@@ -78,12 +79,19 @@ class ImageEditorApp:
         self._job = self.root.after(200, self.updateImageProcessing)
 
     def updateImageProcessing(self):
-        self.doThingOnImage()
+        self.doThingOnImage(from_original=False)
         self.display_image()
 
-    def doThingOnImage(self): # TODO: rename function
+    def doThingOnImage(self, from_original=False): # TODO: rename function
         if self.image:
-            self.image = self.original_image.resize((self.image.width, self.image.height)).copy()
+            if from_original:
+                self.image = Image.open(self.image_path)
+            else:
+                self.image = self.preview_original_image.copy()
+
+            maxWidth = self.image.width
+            maxHeight = self.image.height
+
             if self.BLUR:
                 self.image = self.image.filter(ImageFilter.GaussianBlur(radius=self.BLUR_RADIUS))
 
@@ -96,8 +104,7 @@ class ImageEditorApp:
                 )
                 self.image = self.image.quantize(colors=self.COLORS, kmeans=3)
                 self.image = self.image.convert("RGB")
-                self.image = self.image.resize((self.image.width * 2, self.image.height * 2), Image.NEAREST)
-                while self.image.width < self.original_image.width and self.image.height < self.original_image.height:
+                while self.image.width < maxWidth and self.image.height < maxHeight:
                     self.image = self.image.resize((self.image.width * 2, self.image.height * 2), Image.NEAREST)
 
 
@@ -119,11 +126,14 @@ class ImageEditorApp:
     def load_image(self):
         file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg *.jpeg *png *.bmp *.gif")])
         if file_path:
-            self.original_image = Image.open(file_path)
-            self.image = self.original_image.copy()
+            self.image_path = file_path
+            tmp = Image.open(file_path)
+            self.image = ImageOps.scale(tmp.copy(), 0.15 )
+            self.preview_original_image = self.image.copy()
             self.display_image()
 
-    def resize_image(self, image):
+    def resize_image(self, image, size=None):
+
         aspect_ratio = image.width / image.height
         if aspect_ratio < 1:
             new_height = int(self.root.winfo_height() * 0.5)
@@ -131,13 +141,17 @@ class ImageEditorApp:
         else:
             new_width = int(self.root.winfo_width() * 0.5)
             new_height = int(new_width/aspect_ratio)
+
+        if size:
+            new_height = min(new_height, size[1])
+            new_width = min(new_width, size[1])
+
         return CTkImage(image.resize((new_width, new_height), Image.LANCZOS), size=(new_width, new_height))
 
     def display_image(self):
         if self.image:
-            self.image_tk = self.resize_image(self.image)
-            self.image_label.configure(image=self.image_tk)
-            self.original_image_label.configure(image=self.resize_image(self.original_image))
+            self.image_label.configure(image=self.resize_image(self.image))
+            self.original_image_label.configure(image=self.resize_image(self.preview_original_image))
 
     def apply_filter(self, filter_type):
         if self.image:
@@ -146,13 +160,14 @@ class ImageEditorApp:
 
     def reset_image(self):
         if self.original_image:
-            self.image = self.original_image.copy()
+            self.image = self.preview_original_image.copy()
             self.display_image()
 
     def save_image(self):
         if self.image:
             file_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG Files", "*.png"), ("JPEG Files", "*.jpg"), ("All Files", "*.*")])
             if file_path:
+                self.doThingOnImage(from_original=True)
                 self.image.save(file_path)
                 messagebox.showinfo("Success", "Imaged saved successfully!")
 
