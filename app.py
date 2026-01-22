@@ -1,6 +1,8 @@
 from image import MyImage
 from customtkinter import *
-from processing import Pixelate
+from panel_pixelate import PixelatePanel
+from panel_bitslicing import BitSlicePanel
+from constants import ON_EVENT_RESPONSE_DELAY
 from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk, ImageFilter, ImageOps
 
@@ -15,7 +17,6 @@ customtkinter.set_default_color_theme("catppuccin-frappe-lavender.json")
 
 class ImageEditorApp:
 
-    RESPONSE_DELAY = 200
     WINDOW_RESIZING_RATIO = 0.5
 
     def __init__(self, root):
@@ -27,10 +28,6 @@ class ImageEditorApp:
         self.root.bind("<Configure>", self.on_resize)
 
         self.img = None
-        self.pixelate_effect = Pixelate()
-
-        self.blur_switch_var = StringVar(value="on")
-        self.border_switch_var = StringVar(value="on")
 
         self.create_widgets()
 
@@ -41,50 +38,12 @@ class ImageEditorApp:
         if self.img:
             def temp():
                 self.display_image()
-            self._job = self.root.after(self.RESPONSE_DELAY, temp)
+            self._job = self.root.after(ON_EVENT_RESPONSE_DELAY, temp)
 
-    def on_slider_change_compression_rate(self, value):
-        if self._job:
-            self.root.after_cancel(self._job)
-
-        self.pixelate_effect.COMPRESSION_RATE = float(value) / 100.
-        self.sliderCompressionRate_label.configure(text=f"Compression Rate: {100-self.pixelate_effect.COMPRESSION_RATE*100}%")
-        self._job = self.root.after(self.RESPONSE_DELAY, self.update_image)
-
-    def on_slider_change_colors(self, value):
-        if self._job:
-            self.root.after_cancel(self._job)
-
-        self.pixelate_effect.COLORS_QUANTIZATION = 2 ** int(value)
-        self.sliderColors_label.configure(text=f"# Colors: {self.pixelate_effect.COLORS_QUANTIZATION}")
-        self._job = self.root.after(self.RESPONSE_DELAY, self.update_image)
-
-    def on_slider_change_blur_radius(self, value):
-        if self._job:
-            self.root.after_cancel(self._job)
-
-        self.pixelate_effect.BLUR_RADIUS = int(value)
-        self.sliderBlur_label.configure(text=f"Blur Radius: {self.pixelate_effect.BLUR_RADIUS}")
-        self._job = self.root.after(self.RESPONSE_DELAY, self.update_image)
-
-    def on_switch_blur(self):
-        if self._job:
-            self.root.after_cancel(self._job)
-        
-        self.pixelate_effect.BLUR = self.blur_switch_var.get() == "on"
-        self._job = self.root.after(self.RESPONSE_DELAY, self.update_image)
-
-    def on_switch_border(self):
-        if self._job:
-            self.root.after_cancel(self._job)
-        
-        self.pixelate_effect.BORDER = self.border_switch_var.get() == "on"
-        self._job = self.root.after(self.RESPONSE_DELAY, self.update_image)
-
-    def update_image(self):
+    def update_image(self, fx):
         if self.img:
             self.img.process_image(
-                processing_settings=self.pixelate_effect,
+                processing_settings=fx.effect,
                 from_original=False
             )
             self.display_image()
@@ -135,7 +94,11 @@ class ImageEditorApp:
 
     def create_widgets(self):
         self.create_images()
-        self.create_settings()
+        # TODO: add the 2 panels each to a tab in order to keep the app clean
+        # TODO: add title to each panel
+        # TODO: add button to switch processing on or off
+        self.pixelate_effect = PixelatePanel(self.root, self.update_image)
+        self.bitslicing_effect = BitSlicePanel(self.root, self.update_image)
         self.create_buttons()
 
     def create_images(self):
@@ -162,43 +125,6 @@ class ImageEditorApp:
 
         self.save_button = CTkButton(self.buttons_frame, text="Save Image", text_color="black", command=self.save_image)
         self.save_button.pack(side="left", padx=10)
-
-    def create_settings(self, row_padding = 5):
-        self.settings_frame = CTkFrame(master=self.root)
-        self.settings_frame.pack(pady=10)
-
-        self.sliderCompressionRate_label = CTkLabel(self.settings_frame, text=f"Compression Rate: {100-self.pixelate_effect.COMPRESSION_RATE*100}%")
-        self.sliderCompressionRate_label.pack(pady=row_padding)
-        self.sliderCompressionRate = CTkSlider(self.settings_frame, from_=0, to=100, number_of_steps=100, width=500, orientation='horizontal', command=self.on_slider_change_compression_rate)
-        self.sliderCompressionRate.pack(pady=row_padding)
-        self.sliderCompressionRate.set(int(self.pixelate_effect.COMPRESSION_RATE*100))
-
-        self.sliderColors_label = CTkLabel(self.settings_frame, text=f"# Colors: {self.pixelate_effect.COLORS_QUANTIZATION}")
-        self.sliderColors_label.pack(pady=row_padding)
-        self.sliderColors = CTkSlider(self.settings_frame, from_=1, to=6, number_of_steps=5, width=500, orientation='horizontal', command=self.on_slider_change_colors)
-        self.sliderColors.pack(pady=row_padding)
-        self.sliderColors.set(int(math.log(self.pixelate_effect.COLORS_QUANTIZATION, 2)))
-
-        self.switchBlur = CTkSwitch(self.settings_frame, text="Blur", command=self.on_switch_blur, variable=self.blur_switch_var, onvalue="on", offvalue="off")
-        self.switchBlur.pack(pady=row_padding)
-        if self.pixelate_effect.BLUR:
-            self.switchBlur.select()
-        else:
-            self.switchBlur.deselect()
-
-        self.sliderBlur_label = CTkLabel(self.settings_frame, text=f"Blur Radius: {self.pixelate_effect.BLUR_RADIUS}")
-        self.sliderBlur_label.pack(pady=row_padding)
-        self.sliderBlur = CTkSlider(self.settings_frame, from_=1, to=50, number_of_steps=49, width=500, orientation='horizontal', command=self.on_slider_change_blur_radius)
-        self.sliderBlur.pack(pady=row_padding)
-        self.sliderBlur.set(self.pixelate_effect.BLUR_RADIUS)
-
-        self.switchBorder = CTkSwitch(self.settings_frame, text="Border", command=self.on_switch_border, variable=self.border_switch_var, onvalue="on", offvalue="off")
-        self.switchBorder.pack(pady=row_padding)
-        if self.pixelate_effect.BORDER:
-            self.switchBorder.select()
-        else:
-            self.switchBorder.deselect()
-
 
 if __name__ == "__main__":
     root = CTk()

@@ -10,6 +10,8 @@ DEFAULT_BLUR = False
 DEFAULT_BLUR_RADIUS = 5
 DEFAULT_BORDER = False
 
+DEFAULT_PLANE = 0
+
 class ProcessingTechnique:
     def __init__(self):
         pass
@@ -20,7 +22,7 @@ class ProcessingTechnique:
 class Pixelate(ProcessingTechnique):
 
     def __init__(
-        self, 
+        self,
         COLORS_QUANTIZATION=DEFAULT_COLORS_QUANTIZATION, 
         COMPRESSION_PASSES=DEFAULT_COMPRESSION_PASSES, 
         COMPRESSION_RATE=DEFAULT_COMPRESSION_RATE,
@@ -28,6 +30,7 @@ class Pixelate(ProcessingTechnique):
         BLUR_RADIUS=DEFAULT_BLUR_RADIUS,
         BORDER=DEFAULT_BORDER
         ):
+        super().__init__()
         self.COLORS_QUANTIZATION = COLORS_QUANTIZATION
         self.COMPRESSION_PASSES = COMPRESSION_PASSES
         self.COMPRESSION_RATE = COMPRESSION_RATE
@@ -71,8 +74,11 @@ class Pixelate(ProcessingTechnique):
 
 class BitSplice(ProcessingTechnique):
 
-    def __init__(self):
-        super.__init__()
+    MAX_PLANES = 8
+
+    def __init__(self, PLANE=DEFAULT_PLANE):
+        super().__init__()
+        self.PLANE = PLANE
 
     def apply_effect(self, image: Image) -> Image:
         rgb_array = np.array(image)
@@ -95,5 +101,5 @@ class BitSplice(ProcessingTechnique):
         #     duration=500,            # Duration per frame in milliseconds
         #     loop=0                   # 0 for infinite loop
         # )
-
-        return planes[-1]
+        
+        return planes[self.PLANE]
