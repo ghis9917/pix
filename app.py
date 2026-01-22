@@ -13,7 +13,7 @@ import math
 import time
 
 customtkinter.set_appearance_mode("dark")
-customtkinter.set_default_color_theme("catppuccin-frappe-lavender.json") 
+# customtkinter.set_default_color_theme("catppuccin-frappe-lavender.json") 
 
 class ImageEditorApp:
 
@@ -94,11 +94,7 @@ class ImageEditorApp:
 
     def create_widgets(self):
         self.create_images()
-        # TODO: add the 2 panels each to a tab in order to keep the app clean
-        # TODO: add title to each panel
-        # TODO: add button to switch processing on or off
-        self.pixelate_effect = PixelatePanel(self.root, self.update_image)
-        self.bitslicing_effect = BitSlicePanel(self.root, self.update_image)
+        self.create_effects_tabs()
         self.create_buttons()
 
     def create_images(self):
@@ -125,6 +121,16 @@ class ImageEditorApp:
 
         self.save_button = CTkButton(self.buttons_frame, text="Save Image", text_color="black", command=self.save_image)
         self.save_button.pack(side="left", padx=10)
+
+    def create_effects_tabs(self):
+        self.tabview = customtkinter.CTkTabview(master=self.root)
+        self.tabview.pack(padx=20, pady=20, fill="both", expand=True)
+
+        self.pixelate_tab = self.tabview.add("Pixelate")  # add tab at the end
+        self.bitslice_tab = self.tabview.add("Bit Slice")  # add tab at the end
+
+        self.pixelate_effect = PixelatePanel(self.root, self.pixelate_tab, self.update_image)
+        self.bitslicing_effect = BitSlicePanel(self.root, self.bitslice_tab, self.update_image)
 
 if __name__ == "__main__":
     root = CTk()

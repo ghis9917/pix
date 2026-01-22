@@ -6,8 +6,9 @@ import math
 
 class BitSlicePanel:
 
-    def __init__(self, root, update_image_callback):
+    def __init__(self, root, master, update_image_callback):
         self.root = root
+        self.master = master
         self.effect = BitSplice()
         self.update_image_callback = update_image_callback
         self._job = None
@@ -29,12 +30,12 @@ class BitSlicePanel:
         self._job = self.root.after(ON_EVENT_RESPONSE_DELAY, self.update_image_callback, self)
 
     def create_panel(self, row_padding = 5):
-        self.settings_frame = CTkFrame(master=self.root)
+        self.settings_frame = CTkFrame(master=self.master)
         self.settings_frame.pack(pady=10)
 
         self.sliderPlane_label = CTkLabel(self.settings_frame, text=f"Plane: {1+self.effect.PLANE}")
-        self.sliderPlane_label.pack(pady=row_padding)
+        self.sliderPlane_label.pack(pady=row_padding, anchor="w")
         self.sliderPlane = CTkSlider(self.settings_frame, from_=0, to=7, number_of_steps=8, width=500, orientation='horizontal', command=self.on_setting_change)
-        self.sliderPlane.pack(pady=row_padding)
+        self.sliderPlane.pack(pady=row_padding, anchor="w")
         self.sliderPlane.set(int(self.effect.PLANE))
 
