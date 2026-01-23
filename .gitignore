@@ -1,6 +1,10 @@
 __pycache__/*
 pix/
+dist/
+build/
 
 source/
 output/
 tests/
+
+*.spec
