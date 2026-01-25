@@ -66,10 +66,9 @@ class Pixelate(ProcessingTechnique):
             mask = (final_matrix_edges == [0, 0, 0])
             image_matrix[mask] = 0
 
-            return Image.fromarray(image_matrix)
+            image = Image.fromarray(image_matrix)
 
-        else:
-            return image
+        return image.resize((maxWidth, maxHeight), Image.LANCZOS)
 
 
 class BitSplice(ProcessingTechnique):

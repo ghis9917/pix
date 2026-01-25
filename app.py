@@ -86,7 +86,7 @@ class ImageEditorApp:
             self.display_image()
 
     def save_image(self):
-        if self.image:
+        if self.img:
             file_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG Files", "*.png"), ("JPEG Files", "*.jpg"), ("All Files", "*.*")])
             if file_path:
                 self.img.save(file_path)

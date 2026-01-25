@@ -20,8 +20,7 @@ class MyImage:
         self.processed = self.cached.copy()
 
     def save(self, destination_path):
-        # TODO: Check why this does not work anymore
-        self.process_image(from_original=True)
+        self.process_image(self.last_processing, from_original=True)
         self.processed.save(destination_path)
 
     def reset(self):
@@ -36,7 +35,7 @@ class MyImage:
         else:
             self.processed = self.cached.resize((new_width, new_height), Image.LANCZOS)
 
-    def process_image(self, processing_settings=Pixelate(), from_original=False):
+    def process_image(self, processing_settings, from_original=False):
         if self.processed:
             self.last_processing = processing_settings
             self.is_processed = True
