@@ -20,6 +20,7 @@ class MyImage:
         self.processed = self.cached.copy()
 
     def save(self, destination_path):
+        # TODO: Check why this does not work anymore
         self.process_image(from_original=True)
         self.processed.save(destination_path)
 
