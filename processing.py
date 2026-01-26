@@ -91,14 +91,5 @@ class BitSplice(ProcessingTechnique):
             sliced_image = np.stack([r_slice, g_slice, b_slice], axis=-1).astype(np.uint8) * 255
 
             planes.append(Image.fromarray(sliced_image))
-
-        # TODO: need to check GIF handling in CustomTkinter and PIL to see what's possible
-        # planes[0].save(
-        #     '../output/test_planeSlicing_RGB.gif',
-        #     save_all=True,           # Save all frames
-        #     append_images=planes[1:], # Append remaining frames
-        #     duration=500,            # Duration per frame in milliseconds
-        #     loop=0                   # 0 for infinite loop
-        # )
         
         return planes[self.PLANE]
